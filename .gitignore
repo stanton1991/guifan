@@ -1,0 +1,17 @@
+# 环境变量文件（密码、密钥）
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+
+# 编辑器配置
+.vscode/
+.idea/
+
+# 依赖包
+node_modules/
+
+# 日志
+logs/
+*.log
