@@ -5,7 +5,9 @@
   "main": "src/server.js",
   "scripts": {
     "dev": "node src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "import:gb50016": "node scripts/import-gb50016.js",
+    "generate:gb50016-sql": "node scripts/generate-gb50016-sql.js"
   },
   "keywords": [],
   "author": "",

@@ -13,6 +13,20 @@ const searchText = ref("");
 const searchResult = ref([]);
 const isLoggedIn = computed(() => !!token.value && !!user.value);
 
+function getThemeClass(codeName) {
+  const text = String(codeName || "");
+  if (text.includes("防火") || text.includes("GB 50016")) return "theme-fire";
+  if (text.includes("结构") || text.includes("JGJ") || text.includes("抗震")) return "theme-structure";
+  return "theme-architecture";
+}
+
+function getThemeLabel(codeName) {
+  const text = String(codeName || "");
+  if (text.includes("防火") || text.includes("GB 50016")) return "消防";
+  if (text.includes("结构") || text.includes("JGJ") || text.includes("抗震")) return "结构";
+  return "建筑";
+}
+
 function setSession(sessionToken, sessionUser) {
   token.value = sessionToken;
   user.value = sessionUser;
@@ -73,8 +87,12 @@ async function searchKnowledge() {
 
 <template>
   <main class="page">
+    <div class="blueprint-layer" aria-hidden="true"></div>
     <section class="card">
-      <h1>建筑规范知识库查询</h1>
+      <header class="header">
+        <h1>建筑规范知识库查询</h1>
+        <p>支持关键词检索，快速定位规范条文内容</p>
+      </header>
       <template v-if="!isLoggedIn">
         <div class="tabs">
           <button :class="{ active: mode === 'login' }" @click="mode = 'login'" type="button">登录</button>
@@ -96,17 +114,24 @@ async function searchKnowledge() {
       </template>
       <template v-else>
         <div class="toolbar">
-          <span>当前用户：{{ user.username }}</span>
-          <button type="button" @click="clearSession">退出登录</button>
+          <span class="user-badge">当前用户：{{ user.username }}</span>
+          <button type="button" class="btn-secondary" @click="clearSession">退出登录</button>
         </div>
         <div class="search-box">
           <input v-model.trim="searchText" placeholder="输入关键词或问题，例如：疏散楼梯净宽度" @keyup.enter="searchKnowledge" />
-          <button @click="searchKnowledge" :disabled="queryLoading">{{ queryLoading ? "查询中..." : "查询" }}</button>
+          <button class="btn-primary" @click="searchKnowledge" :disabled="queryLoading">{{ queryLoading ? "查询中..." : "查询" }}</button>
+        </div>
+        <p class="result-count" v-if="searchResult.length">共找到 {{ searchResult.length }} 条相关条文</p>
+        <div v-else class="empty-state">
+          <p>输入关键词开始查询，例如：防火分区、安全出口、疏散楼梯。</p>
         </div>
         <div class="result-list">
-          <article v-for="item in searchResult" :key="item.id" class="result-item">
+          <article v-for="item in searchResult" :key="item.id" class="result-item" :class="getThemeClass(item.code_name)">
             <h3>{{ item.title }}</h3>
-            <p class="meta">{{ item.code_name }} / 条文 {{ item.clause_no || "-" }}</p>
+            <p class="meta">
+              <span class="tag-module">{{ getThemeLabel(item.code_name) }}</span>
+              {{ item.code_name }} / 条文 {{ item.clause_no || "-" }}
+            </p>
             <p>{{ item.content }}</p>
             <p class="tags">关键词：{{ item.keywords || "-" }}</p>
           </article>
