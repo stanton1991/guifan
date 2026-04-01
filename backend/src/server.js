@@ -148,17 +148,60 @@ app.post("/api/auth/login", async (req, res) => {
   }
 });
 
+function sanitizeIlikeFragment(text) {
+  return String(text || "")
+    .replace(/%/g, "")
+    .replace(/,/g, " ")
+    .trim();
+}
+
+app.get("/api/knowledge/standards", authMiddleware, async (_req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from("building_codes")
+      .select("code_name");
+
+    if (error) {
+      return res.status(500).json({ message: "获取规范列表失败", detail: error.message });
+    }
+
+    const names = [...new Set((data || []).map((r) => r.code_name).filter(Boolean))].sort(
+      (a, b) => a.localeCompare(b, "zh-CN")
+    );
+
+    return res.json({ items: names });
+  } catch (error) {
+    return res.status(500).json({ message: "服务器错误", detail: error.message });
+  }
+});
+
 app.get("/api/knowledge/search", authMiddleware, async (req, res) => {
   try {
-    const q = (req.query.q || "").trim();
-    if (!q) {
+    const qRaw = (req.query.q || "").trim();
+    const codeFilter = (req.query.code || "").trim();
+    if (!qRaw) {
       return res.status(400).json({ message: "请输入关键词或问题" });
     }
 
-    const { data, error } = await supabase
+    const safe = sanitizeIlikeFragment(qRaw);
+    if (!safe) {
+      return res.status(400).json({ message: "请输入有效的关键词或问题" });
+    }
+
+    const orClause = codeFilter
+      ? `title.ilike.%${safe}%,content.ilike.%${safe}%,keywords.ilike.%${safe}%`
+      : `code_name.ilike.%${safe}%,title.ilike.%${safe}%,content.ilike.%${safe}%,keywords.ilike.%${safe}%`;
+
+    let query = supabase
       .from("building_codes")
-      .select("id, code_name, clause_no, title, content, keywords, updated_at")
-      .or(`code_name.ilike.%${q}%,title.ilike.%${q}%,content.ilike.%${q}%,keywords.ilike.%${q}%`)
+      .select("id, code_name, clause_no, title, content, keywords, updated_at");
+
+    if (codeFilter) {
+      query = query.eq("code_name", codeFilter);
+    }
+
+    const { data, error } = await query
+      .or(orClause)
       .order("updated_at", { ascending: false })
       .limit(20);
 
@@ -167,7 +210,8 @@ app.get("/api/knowledge/search", authMiddleware, async (req, res) => {
     }
 
     return res.json({
-      query: q,
+      query: qRaw,
+      code: codeFilter || null,
       count: data.length,
       items: data,
     });

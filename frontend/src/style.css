@@ -225,6 +225,57 @@ input:focus {
   border-radius: 999px;
 }
 
+.search-filters {
+  margin-bottom: 12px;
+}
+
+.filter-field {
+  display: grid;
+  gap: 6px;
+}
+
+.filter-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.select-standard {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 11px 12px;
+  font-size: 14px;
+  background: #fff;
+  color: #0f172a;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.select-standard:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
+  outline: none;
+}
+
+.select-standard:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  background: #f1f5f9;
+}
+
+.select-standard optgroup {
+  font-weight: 700;
+  color: #334155;
+  background: #f8fafc;
+}
+
+.select-standard option {
+  font-weight: 400;
+  color: #0f172a;
+  padding: 4px 0;
+}
+
 .search-box {
   display: grid;
   grid-template-columns: 1fr auto;

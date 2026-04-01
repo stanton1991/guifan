@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
 const mode = ref("login");
@@ -11,7 +11,54 @@ const user = ref(localStorage.getItem("user") ? JSON.parse(localStorage.getItem(
 const authForm = ref({ username: "", password: "" });
 const searchText = ref("");
 const searchResult = ref([]);
+const standardsList = ref([]);
+const selectedCode = ref("");
+const standardsLoading = ref(false);
 const isLoggedIn = computed(() => !!token.value && !!user.value);
+
+/** 用于分组的规范名称（书名号内 / 标准号后的标准名 / 编号前缀） */
+function groupNameForStandard(codeName) {
+  const s = String(codeName || "").trim();
+  if (!s) return "其他";
+  const book = s.match(/《([^》]+)》/);
+  if (book) return book[1].trim();
+  const afterCode = s.match(/GB\s*[\d\.—\-]+(?:（[^）]*）)?\s*(.+)$/i);
+  if (afterCode && afterCode[1].trim().length >= 2) return afterCode[1].trim();
+  const jgjTail = s.match(/JGJ\s*[\d\.—\-]+\s*(.+)$/i);
+  if (jgjTail && jgjTail[1].trim().length >= 2) return jgjTail[1].trim();
+  const gbPrefix = s.match(/^(GB\s*(?:\/T\s*)?[\d\.—\-]+(?:（[^）]*）)?)/i);
+  if (gbPrefix) return gbPrefix[1].replace(/\s+/g, " ").trim();
+  const jgjPrefix = s.match(/^(JGJ\s*[\d\.—\-]+)/i);
+  if (jgjPrefix) return jgjPrefix[1].replace(/\s+/g, " ").trim();
+  return s.length > 40 ? `${s.slice(0, 40)}…` : s;
+}
+
+/** 下拉选项展示用短名（仍绑定完整 code_name） */
+function displayNameForStandard(codeName) {
+  const s = String(codeName || "").trim();
+  const inner = s.match(/《([^》]+)》/);
+  if (inner) {
+    const prefix = s.split("《")[0].trim();
+    return prefix ? `${inner[1].trim()} (${prefix})` : inner[1].trim();
+  }
+  return s;
+}
+
+const standardsGrouped = computed(() => {
+  const names = standardsList.value;
+  const map = new Map();
+  for (const fullName of names) {
+    const g = groupNameForStandard(fullName);
+    if (!map.has(g)) map.set(g, []);
+    map.get(g).push(fullName);
+  }
+  const groups = [...map.entries()].map(([groupName, items]) => ({
+    groupName,
+    items: [...items].sort((a, b) => a.localeCompare(b, "zh-CN")),
+  }));
+  groups.sort((a, b) => a.groupName.localeCompare(b.groupName, "zh-CN"));
+  return groups;
+});
 
 function getThemeClass(codeName) {
   const text = String(codeName || "");
@@ -62,6 +109,38 @@ async function submitAuth() {
   }
 }
 
+async function loadStandards() {
+  if (!token.value) return;
+  standardsLoading.value = true;
+  try {
+    const resp = await fetch(`${API_BASE}/api/knowledge/standards`, {
+      headers: { Authorization: `Bearer ${token.value}` },
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.message || "加载规范列表失败");
+    standardsList.value = data.items || [];
+  } catch (_e) {
+    standardsList.value = [];
+  } finally {
+    standardsLoading.value = false;
+  }
+}
+
+watch(
+  isLoggedIn,
+  (loggedIn) => {
+    if (loggedIn) {
+      selectedCode.value = "";
+      loadStandards();
+    } else {
+      standardsList.value = [];
+      selectedCode.value = "";
+      searchResult.value = [];
+    }
+  },
+  { immediate: true }
+);
+
 async function searchKnowledge() {
   message.value = "";
   if (!searchText.value.trim()) {
@@ -70,7 +149,10 @@ async function searchKnowledge() {
   }
   queryLoading.value = true;
   try {
-    const resp = await fetch(`${API_BASE}/api/knowledge/search?q=${encodeURIComponent(searchText.value)}`, {
+    const params = new URLSearchParams();
+    params.set("q", searchText.value.trim());
+    if (selectedCode.value) params.set("code", selectedCode.value);
+    const resp = await fetch(`${API_BASE}/api/knowledge/search?${params.toString()}`, {
       headers: { Authorization: `Bearer ${token.value}` },
     });
     const data = await resp.json();
@@ -116,6 +198,23 @@ async function searchKnowledge() {
         <div class="toolbar">
           <span class="user-badge">当前用户：{{ user.username }}</span>
           <button type="button" class="btn-secondary" @click="clearSession">退出登录</button>
+        </div>
+        <div class="search-filters">
+          <label class="filter-field">
+            <span class="filter-label">规范范围（按规范名称分类）</span>
+            <select v-model="selectedCode" class="select-standard" :disabled="standardsLoading">
+              <option value="">全部规范</option>
+              <optgroup
+                v-for="grp in standardsGrouped"
+                :key="grp.groupName"
+                :label="grp.groupName"
+              >
+                <option v-for="name in grp.items" :key="name" :value="name">
+                  {{ displayNameForStandard(name) }}
+                </option>
+              </optgroup>
+            </select>
+          </label>
         </div>
         <div class="search-box">
           <input v-model.trim="searchText" placeholder="输入关键词或问题，例如：疏散楼梯净宽度" @keyup.enter="searchKnowledge" />
